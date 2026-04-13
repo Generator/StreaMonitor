@@ -365,8 +365,13 @@ class Bot(Thread):
             self.log("Show ended. File:" + p['filename'])
 
     @property
-    def outputFolder(self):
-        return str(os.path.join(DOWNLOADS_DIR, self.username + ' [' + self.siteslug + ']'))
+    def outputFolder(self):  
+        from parameters import PATH_TYPE
+
+        if PATH_TYPE == 'nested':
+            return os.path.join(DOWNLOADS_DIR, self.site, self.username)
+        else:  # plain (default)
+            return os.path.join(DOWNLOADS_DIR, self.username + ' [' + self.siteslug + ']')
 
     def genOutFilename(self, create_dir=True):
         folder = self.outputFolder
