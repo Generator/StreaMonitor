@@ -1,6 +1,7 @@
 __pycache__/
 downloads/
 *.log
+*.bak
 .env
 .venv
 venv*/
