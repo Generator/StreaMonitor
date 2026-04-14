@@ -14,7 +14,10 @@ import requests.cookies
 
 from streamonitor.enums import Status, COUNTRIES, Gender, GENDER_DATA
 import streamonitor.log as log
-from parameters import DOWNLOADS_DIR, DEBUG, WANTED_RESOLUTION, WANTED_RESOLUTION_PREFERENCE, CONTAINER, HTTP_USER_AGENT
+from parameters import (
+    DOWNLOADS_DIR, DEBUG, WANTED_RESOLUTION, WANTED_RESOLUTION_PREFERENCE,
+    CONTAINER, FILENAME_TIME_FORMAT, HTTP_USER_AGENT
+)
 from streamonitor.downloaders.ffmpeg import getVideoFfmpeg
 from streamonitor.models import VideoData
 
@@ -377,7 +380,7 @@ class Bot(Thread):
         folder = self.outputFolder
         if create_dir:
             os.makedirs(folder, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.now().strftime(FILENAME_TIME_FORMAT)
         filename = os.path.join(folder, f'{self.username}-{timestamp}.{CONTAINER}')
         return filename
 

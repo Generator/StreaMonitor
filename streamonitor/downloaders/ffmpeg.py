@@ -5,7 +5,10 @@ import sys
 
 import requests.cookies
 from threading import Thread
-from parameters import DEBUG, SEGMENT_TIME, CONTAINER, FFMPEG_PATH, FFMPEG_READRATE
+from parameters import (
+    DEBUG, SEGMENT_TIME, CONTAINER, FILENAME_TIME_FORMAT,
+    FFMPEG_PATH, FFMPEG_READRATE
+)
 
 
 def getVideoFfmpeg(self, url, filename):
@@ -47,7 +50,7 @@ def getVideoFfmpeg(self, url, filename):
             '-reset_timestamps', '1',
             '-segment_time', str(SEGMENT_TIME),
             '-strftime', '1',
-            f'{username}-%Y%m%d-%H%M%S{suffix}.{CONTAINER}'
+            f'{username}-{FILENAME_TIME_FORMAT}{suffix}.{CONTAINER}'
         ])
     else:
         cmd.extend([
