@@ -10,13 +10,15 @@ _http_lib = None
 if not _http_lib:
     try:
         import pycurl_requests as requests
-        _http_lib = 'pycurl'
+
+        _http_lib = "pycurl"
     except ImportError:
         pass
 if not _http_lib:
     try:
         import requests
-        _http_lib = 'requests'
+
+        _http_lib = "requests"
     except ImportError:
         pass
 if not _http_lib:
@@ -26,13 +28,13 @@ if not _http_lib:
 def getVideoNativeHLS(self, url, filename, m3u_processor=None):
     self.stopDownloadFlag = False
     error = False
-    tmpfilename = filename[:-len('.' + CONTAINER)] + '.tmp.ts'
+    tmpfilename = filename[: -len("." + CONTAINER)] + ".tmp.ts"
     session = requests.Session()
 
     def execute():
         nonlocal error
         downloaded_list = []
-        with open(tmpfilename, 'wb') as outfile:
+        with open(tmpfilename, "wb") as outfile:
             did_download = False
             while not self.stopDownloadFlag:
                 r = session.get(url, headers=self.headers, cookies=self.cookies)
@@ -48,10 +50,16 @@ def getVideoNativeHLS(self, url, filename, m3u_processor=None):
                     did_download = True
                     downloaded_list.append(chunk.uri)
                     chunk_uri = chunk.uri
-                    self.debug('Downloading ' + chunk_uri)
+                    self.debug("Downloading " + chunk_uri)
                     if not chunk_uri.startswith("https://"):
-                        chunk_uri = '/'.join(url.split('.m3u8')[0].split('/')[:-1]) + '/' + chunk_uri
-                    m = session.get(chunk_uri, headers=self.headers, cookies=self.cookies)
+                        chunk_uri = (
+                            "/".join(url.split(".m3u8")[0].split("/")[:-1])
+                            + "/"
+                            + chunk_uri
+                        )
+                    m = session.get(
+                        chunk_uri, headers=self.headers, cookies=self.cookies
+                    )
                     if m.status_code != 200:
                         return
                     outfile.write(m.content)
@@ -81,16 +89,34 @@ def getVideoNativeHLS(self, url, filename, m3u_processor=None):
 
     # Post-processing
     try:
-        stdout = open(filename + '.postprocess_stdout.log', 'w+') if DEBUG else subprocess.DEVNULL
-        stderr = open(filename + '.postprocess_stderr.log', 'w+') if DEBUG else subprocess.DEVNULL
-        output_str = '-c:a copy -c:v copy'
-        suffix = ''
+        stdout = (
+            open(filename + ".postprocess_stdout.log", "w+")
+            if DEBUG
+            else subprocess.DEVNULL
+        )
+        stderr = (
+            open(filename + ".postprocess_stderr.log", "w+")
+            if DEBUG
+            else subprocess.DEVNULL
+        )
+        output_str = "-c:a copy -c:v copy"
+        if CONTAINER == "m4v":
+            output_str += " -f mpegts"
+        suffix = ""
         if SEGMENT_TIME is not None:
-            output_str += f' -f segment -reset_timestamps 1 -segment_time {str(SEGMENT_TIME)}'
-            if hasattr(self, 'filename_extra_suffix'):
+            output_str += (
+                f" -f segment -reset_timestamps 1 -segment_time {str(SEGMENT_TIME)}"
+            )
+            if hasattr(self, "filename_extra_suffix"):
                 suffix = self.filename_extra_suffix
-            filename = filename[:-len('.' + CONTAINER)] + '_%03d' + suffix + '.' + CONTAINER
-        ff = FFmpeg(executable=FFMPEG_PATH, inputs={tmpfilename: None}, outputs={filename: output_str})
+            filename = (
+                filename[: -len("." + CONTAINER)] + "_%03d" + suffix + "." + CONTAINER
+            )
+        ff = FFmpeg(
+            executable=FFMPEG_PATH,
+            inputs={tmpfilename: None},
+            outputs={filename: output_str},
+        )
         ff.run(stdout=stdout, stderr=stderr)
         os.remove(tmpfilename)
     except FFRuntimeError as e:
