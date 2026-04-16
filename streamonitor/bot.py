@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 import os
+import json
+import shutil
 import traceback
 from enum import Enum
 from urllib.parse import urljoin
@@ -22,6 +24,9 @@ from parameters import (
     CONTAINER,
     FILENAME_TIME_FORMAT,
     HTTP_USER_AGENT,
+    TEMP_DOWNLOAD_ENABLED,
+    TEMP_FOLDER,
+    RECORDING_TRACKING_FILE,
 )
 from streamonitor.downloaders.ffmpeg import getVideoFfmpeg
 from streamonitor.models import VideoData
@@ -251,6 +256,20 @@ class Bot(Thread):
                             self.log("Started downloading show")
                             self.recording = True
                             file = self.genOutFilename()
+                            
+                            # If temp download enabled, generate output path and track the recording
+                            temp_filename = None
+                            output_filename = None
+                            if TEMP_DOWNLOAD_ENABLED:
+                                # Generate output filename before download
+                                output_folder = self.outputFolder
+                                os.makedirs(output_folder, exist_ok=True)
+                                timestamp = datetime.now().strftime(FILENAME_TIME_FORMAT)
+                                output_filename = os.path.join(output_folder, f"{self.username}-{timestamp}.{CONTAINER}")
+                                temp_filename = file
+                                # Track the recording
+                                self.add_recording_to_tracking(temp_filename, output_filename)
+                            
                             try:
                                 ret = self.getVideo(self, video_url, file)
                             except Exception as e:
@@ -262,6 +281,14 @@ class Bot(Thread):
                                 self.log(self.status())
                                 self._sleep(self.sleep_on_error)
                                 continue
+                            
+                            # Move from temp to output if temp download was enabled
+                            if TEMP_DOWNLOAD_ENABLED and output_filename and temp_filename:
+                                if self.move_to_output(temp_filename, output_filename):
+                                    self.remove_recording_from_tracking(output_filename)
+                                    # Update file to output path for cache refresh
+                                    file = output_filename
+                            
                             self.recording = False
                             self.log("Recording ended")
                             try:
@@ -423,10 +450,77 @@ class Bot(Thread):
                 DOWNLOADS_DIR, self.username + " [" + self.siteslug + "]"
             )
 
+    @property
+    def tempFolder(self):
+        """Temporary folder for downloads before moving to output."""
+        if TEMP_DOWNLOAD_ENABLED:
+            return TEMP_FOLDER
+        return self.outputFolder
+
+    def _get_tracking_data(self):
+        """Load recording tracking data from JSON file."""
+        if os.path.exists(RECORDING_TRACKING_FILE):
+            try:
+                with open(RECORDING_TRACKING_FILE, "r") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError):
+                return []
+        return []
+
+    def _save_tracking_data(self, data):
+        """Save recording tracking data to JSON file."""
+        os.makedirs(os.path.dirname(RECORDING_TRACKING_FILE) or ".", exist_ok=True)
+        try:
+            with open(RECORDING_TRACKING_FILE, "w") as f:
+                json.dump(data, f, indent=4)
+        except IOError as e:
+            self.logger.error(f"Failed to save tracking data: {e}")
+
+    def add_recording_to_tracking(self, temp_filename, output_filename):
+        """Add a recording to the tracking JSON file."""
+        tracking_data = self._get_tracking_data()
+        tracking_data.append({
+            "temp_filename": temp_filename,
+            "output_filename": output_filename,
+            "site": self.site,
+            "username": self.username,
+            "timestamp": datetime.now().isoformat()
+        })
+        self._save_tracking_data(tracking_data)
+        self.logger.debug(f"Added recording to tracking: {output_filename}")
+
+    def remove_recording_from_tracking(self, output_filename):
+        """Remove a recording from the tracking JSON file after successful move."""
+        tracking_data = self._get_tracking_data()
+        tracking_data = [r for r in tracking_data if r.get("output_filename") != output_filename]
+        self._save_tracking_data(tracking_data)
+        self.logger.debug(f"Removed recording from tracking: {output_filename}")
+
+    def move_to_output(self, temp_filename, output_filename):
+        """Move completed recording from temp folder to output folder."""
+        try:
+            os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+            if os.path.exists(temp_filename):
+                shutil.move(temp_filename, output_filename)
+                self.logger.info(f"Moved recording to: {output_filename}")
+                return True
+            else:
+                self.logger.error(f"Temp file not found: {temp_filename}")
+                return False
+        except Exception as e:
+            self.logger.error(f"Failed to move recording: {e}")
+            return False
+
     def genOutFilename(self, create_dir=True):
-        folder = self.outputFolder
+        """Generate output filename, using temp folder if temp download is enabled."""
+        if TEMP_DOWNLOAD_ENABLED:
+            folder = self.tempFolder
+        else:
+            folder = self.outputFolder
+        
         if create_dir:
             os.makedirs(folder, exist_ok=True)
+        
         timestamp = datetime.now().strftime(FILENAME_TIME_FORMAT)
         filename = os.path.join(folder, f"{self.username}-{timestamp}.{CONTAINER}")
         return filename

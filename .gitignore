@@ -1,10 +1,9 @@
 __pycache__/
 downloads/
 *.log
+*.json
 *.bak
 .env
 .venv
 venv*/
 .idea/
-config.json
-stripchat_mouflon_keys.json

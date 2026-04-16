@@ -99,3 +99,12 @@ WEB_CONFIRM_DELETES = env.str("STRMNTR_CONFIRM_DEL", "MOBILE")
 # Password for the web server
 # If empty no auth required, else username admin and choosen password
 WEBSERVER_PASSWORD = env.str("STRMNTR_PASSWORD", "admin")
+
+# Temporary download folder configuration
+# When enabled, recordings are downloaded to temp folder first, then moved to output folder when complete
+TEMP_DOWNLOAD_ENABLED = env.bool("STRMNTR_TEMP_DOWNLOAD_ENABLED", False)
+# Path for temporary downloads (defaults to downloads/.temp if not specified)
+TEMP_FOLDER = env.str("STRMNTR_TEMP_FOLDER", "downloads/.temp")
+
+# Recording tracking file (JSON file that tracks active recordings during download)
+RECORDING_TRACKING_FILE = env.str("STRMNTR_RECORDING_TRACKING_FILE", "recordings.json")
