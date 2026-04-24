@@ -46,26 +46,56 @@ class Chaturbate(Bot):
             return Status.OFFLINE
 
     def getStatus(self):
-        headers = {"X-Requested-With": "XMLHttpRequest"}
-        data = {"room_slug": self.username, "bandwidth": "high"}
-
+        # Hybrid Approach: First check via /api/biocontext/, then get stream URL
         try:
-            r = requests.post("https://chaturbate.com/get_edge_hls_url_ajax/", headers=headers, data=data)
-            self.lastInfo = r.json()
-            status = self._parseStatus(self.lastInfo['room_status'])
-            if status == status.PUBLIC and not self.lastInfo['url']:
-                status = status.RESTRICTED
-        except:
+            # Step 1: Quick status check via biocontext API
+            bio_url = f"https://chaturbate.com/api/biocontext/{self.username}/"
+            bio_response = self.session.get(bio_url, timeout=10)
+            
+            # Check if response is JSON (not HTML redirect/error page)
+            content_type = bio_response.headers.get('Content-Type', '')
+            if 'application/json' not in content_type:
+                # Not a JSON response - model is offline or doesn't exist
+                self.lastInfo = {'url': None, 'room_status': None}
+                return Status.OFFLINE
+            
+            bio_data = bio_response.json()
+            room_status = bio_data.get('room_status')
+            if not room_status:
+                self.lastInfo = {'url': None, 'room_status': None}
+                return Status.OFFLINE
+            
+            # Step 2: If online, get stream URL
+            hls_headers = {"X-Requested-With": "XMLHttpRequest"}
+            hls_data = {"room_slug": self.username, "bandwidth": "high"}
+            
+            hls_response = self.session.post(
+                "https://chaturbate.com/get_edge_hls_url_ajax/",
+                headers=hls_headers,
+                data=hls_data
+            )
+            self.lastInfo = hls_response.json()
+            
+            status = self._parseStatus(self.lastInfo.get('room_status', room_status))
+            if status == Status.PUBLIC and not self.lastInfo.get('url'):
+                status = Status.RESTRICTED
+                
+        except requests.exceptions.RequestException:
+            self.lastInfo = {'url': None, 'room_status': None}
             status = Status.RATELIMIT
+        except (KeyError, ValueError, AttributeError):
+            self.lastInfo = {'url': None, 'room_status': None}
+            status = Status.ERROR
 
         self.ratelimit = status == Status.RATELIMIT
         return status
 
     @classmethod
     def getStatusBulk(cls, streamers):
-        for streamer in streamers:
-            if not isinstance(streamer, Chaturbate):
-                continue
+        # Filter only Chaturbate streamers
+        cb_streamers = [s for s in streamers if isinstance(s, Chaturbate)]
+        if not cb_streamers:
+            return
 
         session = requests.Session()
         session.headers.update(cls.headers)
@@ -76,22 +106,29 @@ class Chaturbate(Bot):
         except requests.exceptions.JSONDecodeError:
             print('Failed to parse JSON response')
             return
+
         data_map = {str(model['username']).lower(): model for model in data}
 
-        for streamer in streamers:
+        for streamer in cb_streamers:
             model_data = data_map.get(streamer.username.lower())
             if not model_data:
-                streamer.setStatus(Status.OFFLINE)
+                # Not in bulk list - use individual getStatus() for accurate check
+                status = streamer.getStatus()
+                streamer.setStatus(status)
                 continue
+
+            # Found in bulk list - may be online
             if model_data.get('gender'):
                 streamer.gender = cls._GENDER_MAP.get(model_data.get('gender'))
             if model_data.get('country'):
                 streamer.country = model_data.get('country', '').upper()
-            status = cls._parseStatus(model_data['current_show'])
-            if status == status.PUBLIC:
-                if streamer.sc in [status.PUBLIC, Status.RESTRICTED]:
-                    continue
-                status = streamer.getStatus()
-            if status == Status.UNKNOWN:
-                print(f'[{streamer.siteslug}] {streamer.username}: Bulk update got unknown status: {status}')
+
+            bulk_status = cls._parseStatus(model_data['current_show'])
+
+            # Hybrid: If bulk says PUBLIC, verify with individual API call
+            if bulk_status == Status.PUBLIC:
+                status = streamer.getStatus()  # This calls biocontext + HLS APIs
+            else:
+                status = bulk_status
+
             streamer.setStatus(status)
