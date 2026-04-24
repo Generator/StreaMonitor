@@ -382,7 +382,8 @@ function createStreamer() {
 function saveStreamer() {
 	let username = qs("#streamerModal_username").value;
 	let site = qs("#streamerModal_site").value;
-	let command = "add " + username + " " + site;
+	let temporary = qs("#streamerModal_temporary")?.checked ? " temporary" : "";
+	let command = "add " + username + " " + site + temporary;
 	sendCommand(command);
 	
 	const modal = bootstrap.Modal.getInstance(qs("#streamerModal"));

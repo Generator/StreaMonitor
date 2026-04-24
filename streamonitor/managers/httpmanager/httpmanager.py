@@ -87,6 +87,8 @@ class HTTPManager(Manager):
         @app.route('/api/data')
         @login_required
         def apiData():
+            # Check and remove temporary streamers that have stopped
+            self.check_temporary_streamers()
             json_streamer = []
             for streamer in self.streamers:
                 json_stream = {
@@ -231,11 +233,12 @@ class HTTPManager(Manager):
         def add():
             user = request.form["username"]
             site = request.form["site"]
+            temporary = request.form.get("temporary", "") == "true"
             update_site_options = site not in map(lambda x: x.site, self.streamers)
             toast_status = "success"
             status_code = 200
             streamer = self.getStreamer(user, site)
-            res = self.do_add(streamer, user, site)
+            res = self.do_add(streamer, user, site, temporary=temporary)
             streamers, filter_context = streamer_list(self.streamers, request)
             if res == 'Streamer already exists' or res == "Missing value(s)" or res == "Failed to add":
                 toast_status = "error"

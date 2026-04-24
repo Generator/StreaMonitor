@@ -17,6 +17,7 @@ class Manager(Thread):
         super().__init__()
         self.daemon = True
         self.streamers = streamers
+        self.temporary_streamers = []  # Track temporary streamers for auto-removal
         self.logger = log.Logger("manager")
 
     def execCmd(self, line):
@@ -28,8 +29,10 @@ class Manager(Thread):
         if command:
             username = parts[1] if len(parts) > 1 else ""
             site = parts[2] if len(parts) > 2 else ""
+            # Check for temporary flag in command (e.g., "add user site temporary")
+            temporary = len(parts) > 3 and parts[3] == "temporary"
             streamer = self.getStreamer(username, site)
-            return command(streamer, username, site)
+            return command(streamer, username, site, temporary=temporary)
 
     def getStreamer(self, username, site):
         found = None
@@ -52,21 +55,41 @@ class Manager(Thread):
     def saveConfig(self):
         config.save_config([s.export() for s in self.streamers])
 
-    def do_add(self, streamer, username, site):
+    def do_add(self, streamer, username, site, temporary=False):
         if streamer:
             return 'Streamer already exists'
         elif username and site:
             try:
                 streamer = Bot.createInstance(username, site)
+                streamer.temporary = temporary
                 self.streamers.append(streamer)
+                if temporary:
+                    self.temporary_streamers.append(streamer)
                 streamer.start()
                 streamer.restart()
-                self.saveConfig()
+                if not temporary:
+                    self.saveConfig()
                 return "Added [" + streamer.siteslug + "] " + streamer.username
             except Exception as e:
                 return f"Failed to add: {e}"
         else:
             return "Missing value(s)"
+
+    def check_temporary_streamers(self):
+        """Check and remove temporary streamers that have stopped streaming."""
+        from streamonitor.enums import Status
+        to_remove = []
+        for streamer in self.temporary_streamers:
+            if streamer.sc in (Status.OFFLINE, Status.LONG_OFFLINE, Status.NOTRUNNING) or not streamer.running:
+                to_remove.append(streamer)
+        
+        for streamer in to_remove:
+            self.temporary_streamers.remove(streamer)
+            self.streamers.remove(streamer)
+            streamer.stop(None, None)
+            streamer.logger.handlers = []
+        
+        return to_remove
 
     def do_remove(self, streamer, username, site):
         if not streamer:
@@ -81,7 +104,7 @@ class Manager(Thread):
             self.logger.error(e)
             return "Failed to remove streamer"
 
-    def do_start(self, streamer, username, site):
+    def do_start(self, streamer, username, site, temporary=False):
         if not streamer:
             if username == '*':
                 for streamer in self.streamers:
@@ -103,7 +126,7 @@ class Manager(Thread):
                 self.logger.error(e)
                 return "Failed to start"
 
-    def do_stop(self, streamer, username, site):
+    def do_stop(self, streamer, username, site, temporary=False):
         if not streamer:
             if username == '*':
                 for streamer in self.streamers:
@@ -115,7 +138,9 @@ class Manager(Thread):
         else:
             try:
                 streamer.stop(None, None)
-                self.saveConfig()
+                # Don't save config for temporary streamers
+                if not getattr(streamer, 'temporary', False):
+                    self.saveConfig()
                 return "OK"
             except Exception as e:
                 self.logger.error(e)

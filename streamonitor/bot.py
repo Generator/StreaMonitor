@@ -95,6 +95,7 @@ class Bot(Thread):
 
         self.gender = None
         self.country = None
+        self.temporary = False  # If True, auto-remove after stream ends
         self.url = self.getWebsiteURL()
 
     def setUsername(self, username):
