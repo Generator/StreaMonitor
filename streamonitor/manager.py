@@ -80,7 +80,7 @@ class Manager(Thread):
         from streamonitor.enums import Status
         to_remove = []
         for streamer in self.temporary_streamers:
-            if streamer.sc in (Status.OFFLINE, Status.LONG_OFFLINE, Status.NOTRUNNING) or not streamer.running:
+            if streamer.sc in (Status.OFFLINE, Status.LONG_OFFLINE, Status.NOTRUNNING, Status.PRIVATE) or not streamer.running:
                 to_remove.append(streamer)
         
         for streamer in to_remove:
