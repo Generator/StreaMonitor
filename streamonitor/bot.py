@@ -539,6 +539,7 @@ class Bot(Thread):
             "site": self.site,
             "username": self.username,
             "running": self.running,
+            "temporary": getattr(self, 'temporary', False),
             "country": self.country,
             "gender": self.gender.value
             if isinstance(self.gender, Enum)
@@ -603,6 +604,7 @@ class RoomIdBot(Bot):
     def fromConfig(cls, data):
         instance = cls(username=data["username"], room_id=data.get("room_id"))
         instance.running = data.get("running", True)
+        instance.temporary = data.get("temporary", False)
         return instance
 
     def export(self):

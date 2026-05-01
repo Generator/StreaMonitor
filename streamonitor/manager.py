@@ -20,6 +20,11 @@ class Manager(Thread):
         self.temporary_streamers = []  # Track temporary streamers for auto-removal
         self.logger = log.Logger("manager")
 
+        # Rebuild temporary_streamers list from loaded streamers on startup
+        for streamer in self.streamers:
+            if getattr(streamer, 'temporary', False):
+                self.temporary_streamers.append(streamer)
+
     def execCmd(self, line):
         parts = str(line).split(' ')
         if 'do_' + parts[0] not in dir(self):
