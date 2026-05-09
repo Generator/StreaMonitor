@@ -497,16 +497,39 @@ class Bot(Thread):
         self.logger.debug(f"Removed recording from tracking: {output_filename}")
 
     def move_to_output(self, temp_filename, output_filename):
-        """Move completed recording from temp folder to output folder."""
+        """Move completed recording from temp folder to output folder.
+        
+        Handles HLS downloads that use intermediate .tmp.ts files:
+        - After FFmpeg transcode, actual file is .m4v (temp_filename)
+        - .tmp.ts file may still exist and should be cleaned up
+        """
         try:
             os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-            if os.path.exists(temp_filename):
+            
+            # Check for intermediate .tmp.ts file (HLS downloads)
+            ts_temp = temp_filename[: -len("." + CONTAINER)] + ".tmp.ts"
+            
+            if os.path.exists(ts_temp):
+                # .tmp.ts still exists - transcode may be in progress or failed
+                if os.path.exists(temp_filename):
+                    # Transcode completed, move the final .m4v and clean up .tmp.ts
+                    shutil.move(temp_filename, output_filename)
+                    os.remove(ts_temp)
+                    self.logger.info(f"Moved recording to: {output_filename}")
+                else:
+                    # .tmp.ts exists but no .m4v - transcode may have failed
+                    # Keep tracking entry, don't remove .tmp.ts (might be resumable)
+                    self.logger.warning(f"Transcode may have failed: {ts_temp} exists but {temp_filename} not found")
+                    return False
+            elif os.path.exists(temp_filename):
+                # Direct download (no .tmp.ts), move directly
                 shutil.move(temp_filename, output_filename)
                 self.logger.info(f"Moved recording to: {output_filename}")
-                return True
             else:
                 self.logger.error(f"Temp file not found: {temp_filename}")
                 return False
+                
+            return True
         except Exception as e:
             self.logger.error(f"Failed to move recording: {e}")
             return False
