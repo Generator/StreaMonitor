@@ -106,6 +106,11 @@
                 hx-sync="#streamers:queue first"
                 hx-disabled-elt=".modify-streamers" 
                 class="modify-streamers start-streamers">Start All</button>
+            <button hx-get="/refresh/streamers"
+                hx-target="#streamers"
+                hx-include=".filter-streamers-state:valid"
+                hx-sync="#streamers:queue last"
+                class="modify-streamers refresh-streamers"><i class="icon feather icon-refresh"></i> Refresh All</button>
         </div>
     </div>
     <div id="error-container">
