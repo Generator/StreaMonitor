@@ -133,6 +133,10 @@ class HTTPManager(Manager):
         @app.route('/refresh/streamers', methods=['GET'])
         @login_required
         def refresh_streamers():
+            # Refresh file cache for all streamers
+            for streamer in self.streamers:
+                streamer.cache_file_list()
+            
             streamers, filter_context = streamer_list(self.streamers, request)
             context = {
                 'streamers': streamers,
