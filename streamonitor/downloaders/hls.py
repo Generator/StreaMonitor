@@ -25,7 +25,7 @@ if not _http_lib:
     raise ImportError("Please install requests or pycurl package to proceed")
 
 
-def getVideoNativeHLS(self, url, filename, m3u_processor=None):
+def getVideoNativeHLS(self, url, filename, m3u_processor=None, audio_url=None):
     self.stopDownloadFlag = False
     error = False
     tmpfilename = filename[: -len("." + CONTAINER)] + ".tmp.ts"

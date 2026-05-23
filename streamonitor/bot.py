@@ -82,6 +82,8 @@ class Bot(Thread):
         self.cookie_update_interval = 0
 
         self.lastInfo = {}  # This dict will hold information about stream after getStatus is called. One can use this in getVideoUrl
+        self.audio_url = None  # Separate audio stream URL (from HLS audio rendition groups)
+        self._last_audio_entries = {}  # Parsed audio group entries from last master playlist
         self.running = False
         self.quitting = False
         self.sc: Status = Status.NOTRUNNING  # Status code
@@ -242,6 +244,8 @@ class Bot(Thread):
                                 cookie_update_process = Thread(target=update_cookie)
                                 cookie_update_process.start()
 
+                            # Reset audio URL before fetching new stream
+                            self.audio_url = None
                             try:
                                 video_url = self.getVideoUrl()
                             except Exception as e:
@@ -254,6 +258,8 @@ class Bot(Thread):
                                 self._sleep(self.sleep_on_error)
                                 continue
                             self.log("Started downloading show")
+                            if self.audio_url:
+                                self.logger.info(f"Using separate audio stream: {self.audio_url}")
                             self.recording = True
                             file = self.genOutFilename()
                             
@@ -271,7 +277,7 @@ class Bot(Thread):
                                 self.add_recording_to_tracking(temp_filename, output_filename)
                             
                             try:
-                                ret = self.getVideo(self, video_url, file)
+                                ret = self.getVideo(self, video_url, file, audio_url=self.audio_url)
                             except Exception as e:
                                 self.logger.exception(e)
                                 ret = False
@@ -329,6 +335,7 @@ class Bot(Thread):
 
     def getPlaylistVariants(self, url=None, m3u_data=None):
         sources = []
+        self._last_audio_entries = {}
 
         if isinstance(m3u_data, m3u8.M3U8):
             variant_m3u8 = m3u_data
@@ -340,6 +347,17 @@ class Bot(Thread):
             variant_m3u8 = m3u8.loads(m3u8_doc)
         else:
             return sources
+
+        # Extract audio rendition groups from master playlist
+        for media in variant_m3u8.media:
+            if media.type.upper() == "AUDIO" and media.uri:
+                self._last_audio_entries[media.group_id] = {
+                    "uri": media.uri,
+                    "name": media.name or "",
+                    "language": media.language or "",
+                    "default": media.default == "YES",
+                    "autoselect": media.autoselect == "YES",
+                }
 
         for playlist in variant_m3u8.playlists:
             stream_info = playlist.stream_info
@@ -354,6 +372,7 @@ class Bot(Thread):
                     "resolution": resolution,
                     "frame_rate": stream_info.frame_rate,
                     "bandwidth": stream_info.bandwidth,
+                    "audio_group_id": getattr(stream_info, "audio", None),
                 }
             )
 
@@ -416,6 +435,17 @@ class Bot(Thread):
                     f"Selected {selected_source['resolution'][0]}x{selected_source['resolution'][1]}{frame_rate} resolution"
                 )
             selected_source_url = selected_source["url"]
+
+            # Resolve paired audio URL if available
+            self.audio_url = None
+            audio_group_id = selected_source.get("audio_group_id")
+            if audio_group_id and audio_group_id in self._last_audio_entries:
+                audio_uri = self._last_audio_entries[audio_group_id]["uri"]
+                self.audio_url = urljoin(url, audio_uri)
+                self.logger.info(
+                    f"Selected audio: group={audio_group_id} uri={self.audio_url}"
+                )
+
             return urljoin(url, selected_source_url)
         except BaseException as e:
             self.logger.error("Can't get playlist, got some error: " + str(e))

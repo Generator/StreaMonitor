@@ -15,7 +15,7 @@ from parameters import (
 )
 
 
-def getVideoFfmpeg(self, url, filename):
+def getVideoFfmpeg(self, url, filename, audio_url=None):
     cmd = [FFMPEG_PATH, "-user_agent", self.headers["User-Agent"]]
 
     if type(self.cookies) is requests.cookies.RequestsCookieJar:
@@ -38,6 +38,8 @@ def getVideoFfmpeg(self, url, filename):
     if FFMPEG_READRATE:
         cmd.extend(["-readrate", f"{FFMPEG_READRATE!s}"])
 
+    # Build input parameters
+    # When a separate audio URL is provided, use dual-input with stream mapping
     cmd.extend(
         [
             "-max_reload",
@@ -48,12 +50,15 @@ def getVideoFfmpeg(self, url, filename):
             "20",
             "-i",
             url,
-            "-c:a",
-            "copy",
-            "-c:v",
-            "copy",
         ]
     )
+    if audio_url:
+        self.logger.info(f"Dual-input mode: video + audio separate streams")
+        cmd.extend(["-i", audio_url, "-map", "0:v", "-map", "1:a"])
+    else:
+        cmd.extend(["-map", "0"])
+
+    cmd.extend(["-c:a", "copy", "-c:v", "copy"])
 
     # Add container-specific ffmpeg arguments
     container_args = []

@@ -12,7 +12,7 @@ from ffmpy import FFmpeg, FFRuntimeError
 from parameters import DEBUG, CONTAINER, SEGMENT_TIME, FFMPEG_PATH
 
 
-def getVideoWSSVR(self, url, filename):
+def getVideoWSSVR(self, url, filename, audio_url=None):
     self.stopDownloadFlag = False
     error = False
     url = url.replace("fmp4s://", "wss://")

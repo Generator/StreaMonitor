@@ -51,7 +51,7 @@ class StripChat(RoomIdBot):
         super().__init__(username, room_id)
         self._id = None
         self.vr = False
-        self.getVideo = lambda _, url, filename: getVideoNativeHLS(self, url, filename, StripChat.m3u_decoder)
+        self.getVideo = lambda _, url, filename, audio_url=None: getVideoNativeHLS(self, url, filename, StripChat.m3u_decoder)
 
     @classmethod
     def getInitialData(cls):
